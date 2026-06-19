@@ -7,12 +7,14 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/vishu42/pulseops/internal/config"
 	"github.com/vishu42/pulseops/internal/store"
+	"github.com/vishu42/pulseops/internal/ui"
 )
 
 type server struct {
@@ -36,6 +38,8 @@ func main() {
 	mux.HandleFunc("POST /api/v1/companies", s.createCompany)
 	mux.HandleFunc("GET /api/v1/companies/{company_id}/urls", s.listCompanyURLs)
 	mux.HandleFunc("POST /api/v1/companies/{company_id}/urls", s.createCompanyURL)
+	mux.HandleFunc("GET /api/v1/urls/{url_id}/probe-summary", s.getProbeSummary)
+	mux.Handle("GET /", http.FileServerFS(ui.Files()))
 
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -107,6 +111,49 @@ func (s *server) listCompanyURLs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"urls": urls})
+}
+
+func (s *server) getProbeSummary(w http.ResponseWriter, r *http.Request) {
+	hours := queryInt(r, "hours", 24)
+	if hours < 1 {
+		hours = 1
+	}
+	if hours > 24*60 {
+		hours = 24 * 60
+	}
+
+	bucketMinutes := queryInt(r, "bucket_minutes", 5)
+	if bucketMinutes < 1 {
+		bucketMinutes = 5
+	}
+	if bucketMinutes > 60 {
+		bucketMinutes = 60
+	}
+
+	to := time.Now().UTC()
+	from := to.Add(-time.Duration(hours) * time.Hour)
+	summary, err := s.store.GetProbeSummary(r.Context(), r.PathValue("url_id"), from, to, bucketMinutes)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, errors.New("url not found"))
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, summary)
+}
+
+func queryInt(r *http.Request, key string, fallback int) int {
+	value := r.URL.Query().Get(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

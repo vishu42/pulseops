@@ -25,37 +25,40 @@ The initial architecture follows the sketch in `docs/architecture.md`:
 
 ## Local Infra
 
-The repo includes a local development compose file:
+The repo includes a local development compose file. Start the API/UI and dependencies with:
 
 ```sh
-docker compose up -d
+docker compose up --build
 ```
 
 Services:
 
+- PulseOps UI/API on `localhost:8081`
+- Scheduler worker
+- Status checker worker
+- Status writer worker
 - PostgreSQL on `localhost:5432`
 - Redpanda Kafka-compatible broker on `localhost:9092`
 - Redpanda Console on `localhost:8080`
 - MinIO on `localhost:9000`
 - MinIO Console on `localhost:9001`
 
-Create Kafka topics after Redpanda is healthy:
+Open the UI:
 
-```sh
-docker compose exec redpanda sh -lc '/scripts/create-kafka-topics.sh'
+```text
+http://localhost:8081
 ```
 
-Or run the script from a machine with `rpk` installed:
-
-```sh
-BROKERS=localhost:9092 scripts/create-kafka-topics.sh
-```
+For a fresh Postgres volume, the schema is applied automatically from `db/schema.sql`.
+Kafka topics are created automatically by the `kafka-topics` one-shot Compose service.
 
 Apply the initial database schema:
 
 ```sh
 docker compose exec -T postgres psql -U pulseops -d pulseops < db/schema.sql
 ```
+
+You only need the manual schema command if you already had a Postgres volume before schema initialization was added.
 
 ## Services
 
@@ -66,7 +69,7 @@ The first runnable services live under `cmd/`:
 - `cmd/status-checker`: consumes Kafka check jobs, probes URLs, and emits check results.
 - `cmd/status-writer`: consumes check results and writes hot history/latest status.
 
-Run them locally in separate terminals:
+For local Go development without Docker, run them in separate terminals:
 
 ```sh
 make run-api
@@ -74,6 +77,14 @@ make run-scheduler
 make run-checker
 make run-writer
 ```
+
+The API server also serves the simple web UI:
+
+```text
+http://localhost:8081
+```
+
+Click a monitor row in the UI to inspect latest probe status and 5-minute probe averages. Results appear after the scheduler, checker, and writer have processed at least one check.
 
 ## Docs
 

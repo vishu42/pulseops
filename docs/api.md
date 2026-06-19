@@ -105,6 +105,50 @@ Query params:
 
 The API should reject hot history queries older than 60 days unless an archive retrieval path has been implemented.
 
+### Get Probe Summary
+
+```http
+GET /api/v1/urls/{url_id}/probe-summary?hours=24&bucket_minutes=5
+```
+
+Returns the latest status for a monitor plus aggregated probe buckets.
+
+Query params:
+
+- `hours`: number of recent hours to inspect, defaults to `24`.
+- `bucket_minutes`: bucket size, defaults to `5`.
+
+Example response:
+
+```json
+{
+  "url": {
+    "id": "01JZ2E0EWPK4P4T2TFTHV2AR5R",
+    "url": "https://example.com/health"
+  },
+  "latest_status": {
+    "outcome": "up",
+    "status_code": 200,
+    "latency_ms": 142,
+    "checked_at": "2026-06-18T17:50:01Z"
+  },
+  "bucket_minutes": 5,
+  "buckets": [
+    {
+      "bucket_start": "2026-06-18T17:45:00Z",
+      "total_checks": 5,
+      "up_checks": 5,
+      "down_checks": 0,
+      "error_checks": 0,
+      "uptime_percent": 100,
+      "avg_latency_ms": 138,
+      "last_status_code": 200,
+      "last_outcome": "up"
+    }
+  ]
+}
+```
+
 ## Search
 
 ### Search URLs
@@ -138,4 +182,3 @@ URL responses include latest status:
   }
 }
 ```
-

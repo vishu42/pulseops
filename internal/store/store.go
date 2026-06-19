@@ -40,6 +40,36 @@ type MonitoredURL struct {
 	UpdatedAt            time.Time `json:"updated_at"`
 }
 
+type LatestStatus struct {
+	Outcome    string    `json:"outcome"`
+	StatusCode *int      `json:"status_code"`
+	LatencyMS  *int64    `json:"latency_ms"`
+	ErrorType  *string   `json:"error_type"`
+	CheckedAt  time.Time `json:"checked_at"`
+}
+
+type ProbeBucket struct {
+	BucketStart    time.Time `json:"bucket_start"`
+	TotalChecks    int       `json:"total_checks"`
+	UpChecks       int       `json:"up_checks"`
+	DownChecks     int       `json:"down_checks"`
+	ErrorChecks    int       `json:"error_checks"`
+	UptimePercent  float64   `json:"uptime_percent"`
+	AvgLatencyMS   *float64  `json:"avg_latency_ms"`
+	LastStatusCode *int      `json:"last_status_code"`
+	LastOutcome    *string   `json:"last_outcome"`
+	LastCheckedAt  time.Time `json:"last_checked_at"`
+}
+
+type ProbeSummary struct {
+	URL           MonitoredURL  `json:"url"`
+	LatestStatus  *LatestStatus `json:"latest_status"`
+	BucketMinutes int           `json:"bucket_minutes"`
+	From          time.Time     `json:"from"`
+	To            time.Time     `json:"to"`
+	Buckets       []ProbeBucket `json:"buckets"`
+}
+
 type CreateCompanyInput struct {
 	Name string `json:"name"`
 	Slug string `json:"slug"`
@@ -186,6 +216,110 @@ func (s *Store) ListCompanyURLs(ctx context.Context, companyID string, search st
 	}
 	defer rows.Close()
 	return scanURLs(rows)
+}
+
+func (s *Store) GetProbeSummary(ctx context.Context, urlID string, from time.Time, to time.Time, bucketMinutes int) (ProbeSummary, error) {
+	if bucketMinutes <= 0 {
+		bucketMinutes = 5
+	}
+	if to.IsZero() {
+		to = time.Now().UTC()
+	}
+	if from.IsZero() || !from.Before(to) {
+		from = to.Add(-24 * time.Hour)
+	}
+
+	var monitoredURL MonitoredURL
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, company_id, url, normalized_url, method, timeout_ms,
+			check_interval_seconds, expected_status_min, expected_status_max,
+			is_active, next_check_at, created_at, updated_at
+		FROM monitored_urls
+		WHERE id = $1
+	`, urlID).Scan(&monitoredURL.ID, &monitoredURL.CompanyID, &monitoredURL.URL,
+		&monitoredURL.NormalizedURL, &monitoredURL.Method, &monitoredURL.TimeoutMS,
+		&monitoredURL.CheckIntervalSeconds, &monitoredURL.ExpectedStatusMin,
+		&monitoredURL.ExpectedStatusMax, &monitoredURL.IsActive, &monitoredURL.NextCheckAt,
+		&monitoredURL.CreatedAt, &monitoredURL.UpdatedAt)
+	if err != nil {
+		return ProbeSummary{}, err
+	}
+
+	summary := ProbeSummary{
+		URL:           monitoredURL,
+		BucketMinutes: bucketMinutes,
+		From:          from,
+		To:            to,
+	}
+
+	var latest LatestStatus
+	err = s.db.QueryRowContext(ctx, `
+		SELECT outcome, status_code, latency_ms, error_type, checked_at
+		FROM url_latest_status
+		WHERE url_id = $1
+	`, urlID).Scan(&latest.Outcome, &latest.StatusCode, &latest.LatencyMS, &latest.ErrorType, &latest.CheckedAt)
+	if err == nil {
+		summary.LatestStatus = &latest
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return ProbeSummary{}, err
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		WITH bucketed AS (
+			SELECT
+				to_timestamp(floor(extract(epoch from checked_at) / ($4 * 60)) * ($4 * 60)) AT TIME ZONE 'UTC' AS bucket_start,
+				outcome,
+				status_code,
+				latency_ms,
+				checked_at
+			FROM url_check_history
+			WHERE url_id = $1 AND checked_at >= $2 AND checked_at <= $3
+		),
+		latest_in_bucket AS (
+			SELECT DISTINCT ON (bucket_start)
+				bucket_start,
+				status_code AS last_status_code,
+				outcome AS last_outcome,
+				checked_at AS last_checked_at
+			FROM bucketed
+			ORDER BY bucket_start, checked_at DESC
+		)
+		SELECT
+			b.bucket_start,
+			count(*)::int AS total_checks,
+			count(*) FILTER (WHERE b.outcome = 'up')::int AS up_checks,
+			count(*) FILTER (WHERE b.outcome = 'down')::int AS down_checks,
+			count(*) FILTER (WHERE b.outcome = 'error')::int AS error_checks,
+			round((count(*) FILTER (WHERE b.outcome = 'up')::numeric / count(*)::numeric) * 100, 2)::float8 AS uptime_percent,
+			avg(b.latency_ms)::float8 AS avg_latency_ms,
+			l.last_status_code,
+			l.last_outcome,
+			l.last_checked_at
+		FROM bucketed b
+		JOIN latest_in_bucket l ON l.bucket_start = b.bucket_start
+		GROUP BY b.bucket_start, l.last_status_code, l.last_outcome, l.last_checked_at
+		ORDER BY b.bucket_start DESC
+	`, urlID, from, to, bucketMinutes)
+	if err != nil {
+		return ProbeSummary{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var bucket ProbeBucket
+		if err := rows.Scan(&bucket.BucketStart, &bucket.TotalChecks, &bucket.UpChecks,
+			&bucket.DownChecks, &bucket.ErrorChecks, &bucket.UptimePercent,
+			&bucket.AvgLatencyMS, &bucket.LastStatusCode, &bucket.LastOutcome,
+			&bucket.LastCheckedAt); err != nil {
+			return ProbeSummary{}, err
+		}
+		summary.Buckets = append(summary.Buckets, bucket)
+	}
+	if err := rows.Err(); err != nil {
+		return ProbeSummary{}, err
+	}
+
+	return summary, nil
 }
 
 func (s *Store) ClaimDueURLs(ctx context.Context, limit int, lease time.Duration) ([]MonitoredURL, error) {
