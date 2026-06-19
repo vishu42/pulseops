@@ -1,0 +1,29 @@
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Go build outputs
+bin/
+dist/
+*.exe
+*.test
+*.out
+coverage.out
+
+# Logs and runtime scratch
+*.log
+tmp/
+*.pid
+
+# Docker/local volumes
+.docker/
+data/
+
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
