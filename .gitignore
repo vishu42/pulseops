@@ -7,9 +7,23 @@
 bin/
 dist/
 *.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 *.test
 *.out
 coverage.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Optional vendored dependencies
+# vendor/
 
 # Logs and runtime scratch
 *.log
@@ -26,4 +40,3 @@ data/
 .vscode/
 *.swp
 *.swo
-
