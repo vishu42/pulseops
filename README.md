@@ -89,6 +89,7 @@ Click a monitor row in the UI to inspect latest probe status and 5-minute probe 
 ## Docs
 
 - [Architecture](docs/architecture.md)
+- [AWS Architecture](docs/aws.md)
 - [Kafka Topics](docs/kafka-topics.md)
 - [Data Model](docs/data-model.md)
 - [API Draft](docs/api.md)
