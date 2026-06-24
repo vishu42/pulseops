@@ -90,6 +90,7 @@ Click a monitor row in the UI to inspect latest probe status and 5-minute probe 
 
 - [Architecture](docs/architecture.md)
 - [AWS Architecture](docs/aws.md)
+- [Terraform AWS Infrastructure](infra/terraform/README.md)
 - [AWS CLI Infrastructure Scripts](scripts/aws/README.md)
 - [Kafka Topics](docs/kafka-topics.md)
 - [Data Model](docs/data-model.md)

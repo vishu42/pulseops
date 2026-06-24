@@ -30,6 +30,9 @@ go.work.sum
 tmp/
 *.pid
 
+# Terraform/OpenTofu local working directories
+**/.terraform/
+
 # Docker/local volumes
 .docker/
 data/

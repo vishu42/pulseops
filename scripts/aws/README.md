@@ -1,5 +1,7 @@
 # AWS CLI Infrastructure Scripts
 
+> Prefer the Terraform/OpenTofu modules in `infra/terraform` for new infrastructure work. These scripts are kept as manual runbooks/reference material.
+
 These scripts are command runbooks for creating PulseOps AWS infrastructure with AWS CLI, EKS, and self-managed Kafka.
 
 They are intentionally split by layer so commands can be reviewed and executed step by step.
