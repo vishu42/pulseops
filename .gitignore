@@ -35,7 +35,6 @@ tmp/
 
 # Docker/local volumes
 .docker/
-data/
 
 # OS/editor files
 .DS_Store
