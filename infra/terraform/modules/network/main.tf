@@ -99,6 +99,8 @@ resource "aws_route" "public_internet" {
   gateway_id             = aws_internet_gateway.this.id
 }
 
+
+# associate route table to public subnets
 resource "aws_route_table_association" "public" {
   for_each = aws_subnet.public
 
@@ -106,6 +108,7 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+# private route table
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.this.id
 
@@ -114,14 +117,21 @@ resource "aws_route_table" "private" {
   })
 }
 
+
+# private route tabe route to NAT gateway
 resource "aws_route" "private_nat" {
   route_table_id         = aws_route_table.private.id
   destination_cidr_block = "0.0.0.0/0"
   nat_gateway_id         = aws_nat_gateway.this.id
 }
 
+
+# private route table association to private and db subnets
 resource "aws_route_table_association" "private" {
-  for_each = merge(aws_subnet.private, aws_subnet.db)
+  for_each = merge(
+    { for az, subnet in aws_subnet.private : "private-${az}" => subnet },
+    { for az, subnet in aws_subnet.db : "db-${az}" => subnet }
+  )
 
   subnet_id      = each.value.id
   route_table_id = aws_route_table.private.id
@@ -166,7 +176,7 @@ resource "aws_vpc_endpoint" "s3" {
 data "aws_region" "current" {}
 
 resource "aws_vpc_endpoint" "interface" {
-  for_each = toset(["ecr.api", "ecr.dkr", "logs", "secretsmanager", "sts"])
+  for_each = toset(["ec2", "ecr.api", "ecr.dkr", "logs", "secretsmanager", "ssm", "ssmmessages", "ec2messages", "sts"])
 
   vpc_id              = aws_vpc.this.id
   service_name        = "com.amazonaws.${data.aws_region.current.name}.${each.key}"

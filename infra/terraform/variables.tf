@@ -57,7 +57,19 @@ variable "subnet_cidrs" {
 variable "eks_version" {
   description = "EKS Kubernetes version."
   type        = string
-  default     = "1.30"
+  default     = "1.35"
+}
+
+variable "eks_admin_principal_arns" {
+  description = "IAM principal ARNs to grant EKS cluster admin access."
+  type        = list(string)
+  default     = []
+}
+
+variable "eks_user_principal_arns" {
+  description = "IAM principal ARNs to grant EKS cluster user/view access."
+  type        = list(string)
+  default     = []
 }
 
 variable "app_node_instance_types" {

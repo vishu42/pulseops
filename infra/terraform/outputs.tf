@@ -3,11 +3,11 @@ output "aws_region" {
 }
 
 output "cluster_name" {
-  value = try(module.eks[0].cluster_name, null)
+  value = try(module.eks_cluster[0].cluster_name, null)
 }
 
 output "cluster_endpoint" {
-  value = try(module.eks[0].cluster_endpoint, null)
+  value = try(module.eks_cluster[0].cluster_endpoint, null)
 }
 
 output "vpc_id" {
