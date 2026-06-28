@@ -381,13 +381,20 @@ echo "Creating EKS cluster"
 # Create a private-subnet EKS cluster. endpointPublicAccess=true keeps kubectl
 # access simple for now; endpointPrivateAccess=true allows in-VPC access too.
 aws eks create-cluster \
-  --profile "$AWS_PROFILE" \
   --region "$AWS_REGION" \
   --name "$CLUSTER_NAME" \
-  --version "$EKS_VERSION" \
-  --role-arn "$EKS_CLUSTER_ROLE_ARN" \
-  --resources-vpc-config "subnetIds=${PRIVATE_SUBNET_A},${PRIVATE_SUBNET_B},${PRIVATE_SUBNET_C},securityGroupIds=${ALB_SECURITY_GROUP_ID},endpointPublicAccess=true,endpointPrivateAccess=true" \
+  --version "1.35" \
+  --role-arn "arn:aws:iam::012345678910:role/eks-service-role-AWSServiceRoleForAmazonEKS-J7ONKE3BQ4PI" \
+  --resources-vpc-config "subnetIds=${PRIVATE_SUBNET_A},${PRIVATE_SUBNET_B},${PRIVATE_SUBNET_C}" \
   --tags "Project=${PROJECT},Environment=${ENVIRONMENT}"
+
+aws eks create-cluster \
+  --name "$CLUSTER_NAME" \
+  --region $AWS_REGION \
+  --role-arn  arn:aws:iam::211481646329:role/pulseops-prod-eks-cluster-role \
+  --resources-vpc-config "subnetIds=${PRIVATE_SUBNET_A},${PRIVATE_SUBNET_B},${PRIVATE_SUBNET_C}"
+
+# securityGroupIds=${ALB_SECURITY_GROUP_ID},endpointPublicAccess=true,endpointPrivateAccess=true"
 
 # Block until the EKS control plane is ready for node groups and add-ons.
 aws eks wait cluster-active --profile "$AWS_PROFILE" --region "$AWS_REGION" --name "$CLUSTER_NAME"

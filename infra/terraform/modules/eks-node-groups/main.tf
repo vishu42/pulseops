@@ -35,14 +35,10 @@ resource "aws_iam_role_policy_attachment" "node_ebs_csi" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
-data "aws_subnet" "private" {
-  id = var.private_subnet_ids[0]
-}
-
 resource "aws_security_group" "node" {
   name_prefix = "${var.name_prefix}-eks-node-"
   description = "EKS Node security group"
-  vpc_id      = data.aws_subnet.private.vpc_id
+  vpc_id      = var.vpc_id
 
   egress {
     from_port   = 0
@@ -138,7 +134,7 @@ resource "aws_eks_node_group" "kafka" {
 
   launch_template {
     id      = aws_launch_template.node.id
-    version = "$Latest"
+    version = "1"
   }
 
   instance_types = var.kafka_node_instance_types

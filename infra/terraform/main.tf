@@ -28,7 +28,7 @@ module "eks_cluster" {
   cluster_name         = local.cluster_name
   cluster_version      = var.eks_version
   private_subnet_ids   = module.network[0].private_subnet_ids
-  admin_principal_arns = ["arn:aws:iam::211481646329:user/terraform-01"]
+  admin_principal_arns = ["arn:aws:iam::211481646329:root"]
   user_principal_arns  = var.eks_user_principal_arns
   tags                 = local.tags
 }
@@ -40,6 +40,7 @@ module "eks_node_groups" {
   name_prefix               = local.name_prefix
   cluster_name              = module.eks_cluster[0].cluster_name
   private_subnet_ids        = module.network[0].private_subnet_ids
+  vpc_id                    = module.network[0].vpc_id
   cluster_security_group_id = module.eks_cluster[0].cluster_security_group_id
   app_node_instance_types   = var.app_node_instance_types
   kafka_node_instance_types = var.kafka_node_instance_types

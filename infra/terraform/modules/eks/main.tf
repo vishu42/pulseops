@@ -61,6 +61,54 @@ resource "aws_iam_role_policy_attachment" "node_ebs_csi" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
+data "aws_subnet" "private" {
+  id = var.private_subnet_ids[0]
+}
+
+resource "aws_security_group" "node" {
+  name_prefix = "${var.name_prefix}-eks-node-"
+  description = "EKS Node security group"
+  vpc_id      = data.aws_subnet.private.vpc_id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-eks-node-sg"
+  })
+}
+
+resource "aws_security_group_rule" "cluster_to_node" {
+  type                     = "ingress"
+  from_port                = 1025
+  to_port                  = 65535
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.node.id
+  source_security_group_id = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+}
+
+resource "aws_security_group_rule" "node_to_cluster_api" {
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  security_group_id        = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+  source_security_group_id = aws_security_group.node.id
+}
+
+resource "aws_security_group_rule" "node_to_node" {
+  type              = "ingress"
+  from_port         = 0
+  to_port           = 65535
+  protocol          = "tcp"
+  security_group_id = aws_security_group.node.id
+  self              = true
+}
+
 resource "aws_eks_cluster" "this" {
   name     = var.cluster_name
   role_arn = aws_iam_role.cluster.arn
@@ -85,11 +133,29 @@ resource "aws_iam_openid_connect_provider" "this" {
   tags = var.tags
 }
 
+resource "aws_launch_template" "node" {
+  name_prefix             = "${var.name_prefix}-eks-node-"
+  update_default_version  = true
+  vpc_security_group_ids  = [aws_security_group.node.id]
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = merge(var.tags, {
+      Name = "${var.name_prefix}-eks-node"
+    })
+  }
+}
+
 resource "aws_eks_node_group" "app" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.name_prefix}-app-ng"
   node_role_arn   = aws_iam_role.node.arn
   subnet_ids      = var.private_subnet_ids
+
+  launch_template {
+    id      = aws_launch_template.node.id
+    version = "$Latest"
+  }
 
   instance_types = var.app_node_instance_types
   capacity_type  = "SPOT"
@@ -119,6 +185,11 @@ resource "aws_eks_node_group" "kafka" {
   node_group_name = "${var.name_prefix}-kafka-ng"
   node_role_arn   = aws_iam_role.node.arn
   subnet_ids      = var.private_subnet_ids
+
+  launch_template {
+    id      = aws_launch_template.node.id
+    version = "$Latest"
+  }
 
   instance_types = var.kafka_node_instance_types
   capacity_type  = "ON_DEMAND"
